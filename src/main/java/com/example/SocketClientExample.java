@@ -10,10 +10,18 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Scanner;
 
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JTextField;
+// import javax.swing.JButton;
+// import javax.swing.JFrame;
+// import javax.swing.JLabel;
+// import javax.swing.JTextArea;
+// import javax.swing.JTextField;
+// import javax.swing.JPanel;
+// import javax.swing.JScrollPane;
+// import javax.swing.SwingUtilities;
+import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 
 public class SocketClientExample {
 
@@ -31,47 +39,98 @@ public class SocketClientExample {
      * information
      * and another thread in charge of receiving information.
      */
+
     public static void main(String[] args) throws UnknownHostException, IOException, ClassNotFoundException, InterruptedException{
         //get the localhost IP address, if server is running on some other IP, you need to use that
+        System.out.println("What's your username?");
+       
         InetAddress host = InetAddress.getLocalHost();
         ArrayList<String> messages = new ArrayList<String>();
         Socket  socket = new Socket(host.getHostName(), 9876);
         try{
         ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
         ObjectOutputStream oos = new ObjectOutputStream(socket.getOutputStream());
-        System.out.println("your message");
+        // System.out.println(messages.get(messages.size()));
         Scanner line = new Scanner(System.in);
-        while(!(line.nextLine()).equals("!disconnect")){
-            oos.writeObject(line);
-            oos.flush();
-        }
-        oos.writeObject("!disconnect");
-        oos.flush();
-        System.out.println("Connection Closed!");
-      
         
-   
+      
         JFrame f = new JFrame("Chat Room");
-		for(int i=0; i<messages.size();i++) {
-            f.add(new JLabel(messages.get(i)));
+        f.setLayout(new BorderLayout());
+        JTextArea chatArea = new JTextArea(10, 30);
+        
+        class MyThread extends Thread{
+        
+            public void run(){
+                while(true){
+                    try {
+                        String msg = (String)ois.readObject();
+                        SwingUtilities.invokeLater(() -> chatArea.append(msg + "\n"));
+                    } catch (ClassNotFoundException | IOException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
-        JButton discon = new JButton("Disconnect")
+        MyThread myThread = new MyThread();
+        myThread.start();
+        chatArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(chatArea);
+        f.add(scrollPane, BorderLayout.CENTER);
+        
+        JPanel panel = new JPanel();
+        JButton discon = new JButton("Disconnect");
         discon.addActionListener(new ActionListener() { 
             public void actionPerformed(ActionEvent e) { 
-                oos.writeObject("!disconnect");
-                oos.flush();
-            } 
-        } );
-        JTextField textField = new JTextField("Your message here");
-        JButton send = new JButton("Send");
-        discon.addActionListener(new ActionListener() { 
-            public void actionPerformed(ActionEvent e) { 
-                if(textField.getText() != null || textField.getText() != ""){
-                    oos.send(textField.getText);
-                    textField.setText("null");
+                try {
+                    oos.writeObject("!disconnect");
+                } catch (IOException e1) {
+                    // TODO Auto-generated catch block
+                    e1.printStackTrace();
+                }
+                try {
+                    oos.flush();
+                } catch (IOException e1) {
+                    // TODO Auto-generated catch block
+                    e1.printStackTrace();
                 }
             } 
-        } );
+        });
+        JTextField textField = new JTextField(20);
+        JButton send = new JButton("Send");
+        send.addActionListener(new ActionListener() { 
+            public void actionPerformed(ActionEvent e) { 
+                if(textField.getText() != null && !textField.getText().isEmpty()){
+                    try {
+                        oos.writeObject(new Info(textField.getText()));
+                    } catch (IOException e1) {
+                        // TODO Auto-generated catch block
+                        e1.printStackTrace();
+                    }
+                    try {
+                        oos.flush();
+                    } catch (IOException e1) {
+                        // TODO Auto-generated catch block
+                        e1.printStackTrace();
+                    }
+                    textField.setText("");
+                }
+            } 
+        });
+        panel.add(textField);
+        panel.add(send);
+        panel.add(discon);
+        f.add(panel, "South");
+        f.pack();
+        f.setVisible(true);
+
+        // while(!(line.nextLine()).equals("!disconnect")){
+        //     oos.writeObject(new Info((String)(Object)line));
+        //     oos.flush();
+        // }
+        // oos.writeObject("!disconnect");
+        // oos.flush();
+        // System.out.println("Connection Closed!");
 
     }catch(EOFException e){
         System.out.println("something went wrong");

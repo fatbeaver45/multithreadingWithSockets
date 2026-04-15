@@ -26,7 +26,6 @@ public class ChatServerWithThreads {
 
         ServerSocket listener;  // Listens for incoming connections.
         Socket connection;      // For communication with the connecting program.
-        ArrayList<ConnectionHandler> handlers = new ArrayList<ConnectionHandler>();
 
         /* Accept and process connections forever, or until some error occurs. */
 
@@ -58,51 +57,78 @@ public class ChatServerWithThreads {
     // listen 
     
     private static class ConnectionHandler extends Thread {
+        private volatile static ArrayList<ConnectionHandler> handlers = new ArrayList<ConnectionHandler>();
+        private static int nextID=0;
         Socket client;
         ObjectOutputStream oos;
         ObjectInputStream ois;
+        String name;
         ConnectionHandler(Socket socket) {
             client = socket;
-            
+            name = nextID+"";
+            nextID++;
             try {
                 oos = new ObjectOutputStream(client.getOutputStream());
-            } catch (IOException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            try {
                 ois = new ObjectInputStream(client.getInputStream());
-            } catch (IOException e) {
+                synchronized (handlers) {
+                    handlers.add(this);
+                }
+            }
+            catch (IOException e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
+            // try {
+            //     ois = new ObjectInputStream(client.getInputStream());
+            // } catch (IOException e) {
+            //     // TODO Auto-generated catch block
+            //     e.printStackTrace();
+            // }
         }
-        public void sendMessage(){
+        // public void sendMessage(){
 
-        }
+        // }
         public void run() {
             String clientAddress = client.getInetAddress().toString();
             while(true) {
 	            try {
-	            	
-                    while(true){
-                        String message = (String)ois.readObject();
-                        if(!message.equals("!disconnect")){
-                            System.out.println(message);
-                        }
-                        else{
-                            System.out.println("Connection Closed");
-                            break;
-                        }
-                        Object obj = ois.readObject();
-                        if(ois.isReady()){
-                            // loop and send to each connection.
+                    Object incoming = ois.readObject();
+                    if (incoming.equals("!disconnect")) {
+                        System.out.println("Connection Closed");
+                        break;
+                    }
+                    if (incoming instanceof Info) {
+                        Info info = (Info) incoming;
+                        String message = info.getMessage();
+                        System.out.println(message);
+                        synchronized (handlers) {
+                            for (ConnectionHandler hand : handlers){
+                                try{
+                                    hand.oos.writeObject(message);
+                                    hand.oos.flush();
+                                }
+                                catch (IOException e){
+                                }
+                            }
                         }
                     }
+                    else if (incoming.equals("!disconnect")) {
+                        System.out.println("Connection Closed");
+                        break;
+                    }
+                    
+                    
+                    
+                    
+                    
 	            }
 	            catch (Exception e){
 	                System.out.println("Error on connection with: " 
 	                        + clientAddress + ": " + e);
+                            synchronized (handlers) {
+                    handlers.remove(this);
+                    }
+                    break;
 	            }
             }
         }
